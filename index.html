@@ -1404,22 +1404,29 @@ function normalizeScore(rawTotal) {
 //   → RI = 30×0.5 + (80+80+80)/3×0.5 = 15 + 40 = 55
 //   4要素が均等80なら → RI = 80×0.5 + 80×0.5 = 80
 function computeRI(subScores) {
-  const RI_KEYS = ['EI', 'LI', 'CuI', 'SI'];
-  const entries = RI_KEYS.map(id => ({ id, val: subScores[id] }));
-  entries.sort((a, b) => a.val - b.val);
-  const minEntry = entries[0];
-  const rest = entries.slice(1);
-  const restAvg = Math.round((rest[0].val + rest[1].val + rest[2].val) / 3);
-  const ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
-  const potentialRI = Math.min(100, restAvg);
-  const riGain = potentialRI - ri;
+  var ei = subScores['EI'];
+  var li = subScores['LI'];
+  var cui = subScores['CuI'];
+  var si = subScores['SI'];
+  var arr = [
+    {id:'EI', val:ei},
+    {id:'LI', val:li},
+    {id:'CuI', val:cui},
+    {id:'SI', val:si}
+  ];
+  arr.sort(function(a,b){ return a.val - b.val; });
+  var minEntry = arr[0];
+  var restAvg = Math.round((arr[1].val + arr[2].val + arr[3].val) / 3);
+  var ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
+  var potentialRI = Math.min(100, restAvg);
+  var riGain = potentialRI - ri;
   return {
-    ri,
+    ri: ri,
     minKey: minEntry.id,
     minVal: minEntry.val,
-    restAvg,
-    riGain,
-    riBreakdown: Object.fromEntries(RI_KEYS.map(id => [id, subScores[id]]))
+    restAvg: restAvg,
+    riGain: riGain,
+    riBreakdown: {EI:ei, LI:li, CuI:cui, SI:si}
   };
 }
 
