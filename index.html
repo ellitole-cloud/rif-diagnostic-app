@@ -1405,22 +1405,28 @@ function normalizeScore(rawTotal) {
 //   4要素が均等80なら → RI = 80×0.5 + 80×0.5 = 80
 function computeRI(subScores) {
   const RI_KEYS = ['EI', 'LI', 'CuI', 'SI'];
-  const entries = RI_KEYS.map(id => ({ id, val: subScores[id] }));
-  entries.sort((a, b) => a.val - b.val);
+  const vals = RI_KEYS.map(id => subScores[id]);
 
-  const minEntry = entries[0];
-  const rest = [entries[1].val, entries[2].val, entries[3].val];
-  const restAvg = Math.round((rest[0] + rest[1] + rest[2]) / 3);
+  // minを除いた残り3要素を正しく算出
+  const sortedByVal = RI_KEYS
+    .map((id, i) => ({ id, val: vals[i] }))
+    .sort((a, b) => a.val - b.val);
+
+  const minEntry    = sortedByVal[0];
+  const restEntries = sortedByVal.slice(1); // 残り3要素
+  const restAvg     = restEntries.reduce((a, e) => a + e.val, 0) / restEntries.length;
 
   const ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
-  const potentialRI = Math.min(100, restAvg);
-  const riGain = potentialRI - ri;
+
+  // RI上昇余地：最弱リンクが平均に追いついた場合のRI試算
+  const potentialRI = Math.min(100, Math.round(restAvg * 0.5 + restAvg * 0.5));
+  const riGain = potentialRI - ri; // この数値だけRIが上昇しうる
 
   return {
     ri,
     minKey: minEntry.id,
     minVal: minEntry.val,
-    restAvg,
+    restAvg: Math.round(restAvg),
     riGain,
     riBreakdown: Object.fromEntries(RI_KEYS.map(id => [id, subScores[id]]))
   };
