@@ -1407,16 +1407,11 @@ function computeRI(subScores) {
   const RI_KEYS = ['EI', 'LI', 'CuI', 'SI'];
   const vals = RI_KEYS.map(id => subScores[id]);
 
-  const minVal   = Math.min(...vals);
-  const minKey   = RI_KEYS[vals.indexOf(minVal)];
-  const restVals = vals.filter(v => v !== minVal || (() => { const idx = vals.indexOf(v); vals[idx] = Infinity; return false; })());
-
-  // minを除いた残り3要素（同値があっても1つだけ除く）
-  const sortedIdxByVal = RI_KEYS
-    .map((id, i) => ({ id, val: vals[i], i }))
+  const sortedByVal = RI_KEYS
+    .map((id, i) => ({ id, val: vals[i] }))
     .sort((a, b) => a.val - b.val);
-  const minEntry   = sortedIdxByVal[0];
-  const restEntries = sortedIdxByVal.slice(1);
+  const minEntry = sortedByVal[0];
+  const restEntries = sortedByVal.slice(1);
   const restAvg    = restEntries.reduce((a, e) => a + e.val, 0) / restEntries.length;
 
   const ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
