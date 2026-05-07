@@ -1,4 +1,3 @@
-<!-- Updated: 2026-05-05 23:27:51 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -79,7 +78,6 @@
     animation: fadeIn 0.5s ease;
   }
   .screen.active { display: block; }
-  .screen.active#screen-landing { display: flex; }
 
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(12px); }
@@ -88,6 +86,7 @@
 
   /* ─── LANDING ─── */
   #screen-landing {
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -996,9 +995,6 @@
   <!-- Insights -->
   <div class="insight-grid" id="insight-grid"></div>
 
-  <!-- 実務活用インサイト -->
-  <div id="practical-insights"></div>
-
   <!-- Message -->
   <div class="result-message">
     <div class="rm-quote" id="result-quote"></div>
@@ -1405,29 +1401,34 @@ function normalizeScore(rawTotal) {
 //   → RI = 30×0.5 + (80+80+80)/3×0.5 = 15 + 40 = 55
 //   4要素が均等80なら → RI = 80×0.5 + 80×0.5 = 80
 function computeRI(subScores) {
-  var ei = subScores['EI'];
-  var li = subScores['LI'];
-  var cui = subScores['CuI'];
-  var si = subScores['SI'];
-  var arr = [
-    {id:'EI', val:ei},
-    {id:'LI', val:li},
-    {id:'CuI', val:cui},
-    {id:'SI', val:si}
-  ];
-  arr.sort(function(a,b){ return a.val - b.val; });
-  var minEntry = arr[0];
-  var restAvg = Math.round((arr[1].val + arr[2].val + arr[3].val) / 3);
-  var ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
-  var potentialRI = Math.min(100, restAvg);
-  var riGain = potentialRI - ri;
+  const RI_KEYS = ['EI', 'LI', 'CuI', 'SI'];
+  const vals = RI_KEYS.map(id => subScores[id]);
+
+  const minVal   = Math.min(...vals);
+  const minKey   = RI_KEYS[vals.indexOf(minVal)];
+  const restVals = vals.filter(v => v !== minVal || (() => { const idx = vals.indexOf(v); vals[idx] = Infinity; return false; })());
+
+  // minを除いた残り3要素（同値があっても1つだけ除く）
+  const sortedIdxByVal = RI_KEYS
+    .map((id, i) => ({ id, val: vals[i], i }))
+    .sort((a, b) => a.val - b.val);
+  const minEntry   = sortedIdxByVal[0];
+  const restEntries = sortedIdxByVal.slice(1);
+  const restAvg    = restEntries.reduce((a, e) => a + e.val, 0) / restEntries.length;
+
+  const ri = Math.min(100, Math.max(0, Math.round(minEntry.val * 0.5 + restAvg * 0.5)));
+
+  // RI上昇余地：最弱リンクが平均に追いついた場合のRI試算
+  const potentialRI = Math.min(100, Math.round(restAvg * 0.5 + restAvg * 0.5));
+  const riGain = potentialRI - ri; // この数値だけRIが上昇しうる
+
   return {
-    ri: ri,
+    ri,
     minKey: minEntry.id,
     minVal: minEntry.val,
-    restAvg: restAvg,
-    riGain: riGain,
-    riBreakdown: {EI:ei, LI:li, CuI:cui, SI:si}
+    restAvg: Math.round(restAvg),
+    riGain,
+    riBreakdown: Object.fromEntries(RI_KEYS.map(id => [id, subScores[id]]))
   };
 }
 
@@ -1556,198 +1557,6 @@ function getRIType(ri, subScores) {
     axis: { ri, introspection, action },
     color: '#9C8870'
   };
-}
-
-// ══════════════════════════════════════════
-//  特性タグ & 実務活用インサイト生成
-// ══════════════════════════════════════════
-
-function computeTraitTags(subScores, ri) {
-  const tags = [];
-  const H = 68; // High閾値
-  const L = 48; // Low閾値
-
-  const s = subScores;
-
-  // ── 内向型・深化型（シャイだが深い関係で力を発揮）──
-  // 初対面は苦手でも、EI・MI・SI・HIが高い = 内向型の高RI
-  const introvertScore = Math.round((s.EI + s.MI + s.SI + s.HI) / 4);
-  const outerScore = Math.round((s.LI + s.CuI) / 2);
-  if (introvertScore >= H && outerScore <= L + 10) {
-    tags.push({ label: '内向型・深化型', color: '#3D6FA8', icon: '🌊' });
-  }
-
-  // ── 人見知りタイプ（LI低・EI高）──
-  // 人見知りだが感情理解は豊か = シャイだが共感力がある
-  if (s.LI <= L && s.EI >= H) {
-    tags.push({ label: '人見知り×共感型', color: '#6B5B8A', icon: '🤍' });
-  }
-
-  // ── 自己肯定感 ──
-  const selfEsteem = Math.round((s.HI + s.SI + s.MI) / 3);
-  if (selfEsteem >= H) tags.push({ label: '自己肯定感：高い', color: '#4A7A55', icon: '🌟' });
-  else if (selfEsteem <= L) tags.push({ label: '自己肯定感：低め', color: '#C4714A', icon: '🌱' });
-
-  // ── 器用貧乏 ──
-  const allVals = Object.values(s);
-  const mean = allVals.reduce((a,b)=>a+b,0)/allVals.length;
-  const maxVal = Math.max(...allVals);
-  const stdDev = Math.sqrt(allVals.reduce((a,v)=>a+(v-mean)**2,0)/allVals.length);
-  if (stdDev < 10 && maxVal < 75) tags.push({ label: '器用貧乏タイプ', color: '#6B5B8A', icon: '⚖️' });
-
-  // ── 完璧主義 ──
-  if (s.MI >= H && s.AeI >= H && s.XI >= H) tags.push({ label: '完璧主義傾向', color: '#3D6FA8', icon: '🎯' });
-
-  // ── 燃え尽き症候群リスク ──
-  if (s.XI >= H && s.HI <= L && s.AI <= L) tags.push({ label: '燃え尽き注意', color: '#C4714A', icon: '⚠️' });
-
-  // ── リーダー適性 ──
-  if (ri >= H && s.XI >= H && s.CI >= H) tags.push({ label: 'リーダー適性：高い', color: '#3D7A72', icon: '👑' });
-
-  // ── クリエイター適性 ──
-  if (s.AeI >= H && s.SI >= H && s.TI >= H) tags.push({ label: 'クリエイター適性', color: '#6B5B8A', icon: '✨' });
-
-  // ── 孤独感リスク ──
-  if (s.LI <= L && s.EI <= L && s.HI <= L) tags.push({ label: '孤立感リスクあり', color: '#C9813A', icon: '💬' });
-
-  // ── 共感疲労リスク ──
-  if (s.EI >= H && s.AI <= L && s.BI <= L) tags.push({ label: '共感疲労リスク', color: '#C9813A', icon: '🫂' });
-
-  // ── 成長意欲 ──
-  if (s.AI >= H && s.CI >= H && s.TI >= H) tags.push({ label: '成長意欲：高い', color: '#4A7A55', icon: '🚀' });
-
-  return tags;
-}
-
-function computePracticalInsights(subScores, ri) {
-  const s = subScores;
-  const H = 68;
-  const L = 48;
-  const sections = [];
-
-  // ── キャリア面談 ──
-  const careerItems = [];
-  if (ri <= L)   careerItems.push({ text: 'RI低：対人関係の質に課題があります。コミュニケーション改善が優先テーマです。', urgent: true });
-  if (s.SI <= L) careerItems.push({ text: 'SI低：仕事の意味・方向性が見えにくい状態です。価値観の棚卸しを推奨します。', urgent: true });
-  if (s.AeI <= L) careerItems.push({ text: 'AeI低：直感・創造性が停滞気味です。感性を刺激する体験が有効です。', urgent: false });
-  if (s.AI <= L) careerItems.push({ text: 'AI低：継続・粘りに課題があります。小さな成功体験の積み上げが有効です。', urgent: true });
-  if (ri >= H && s.XI >= H) careerItems.push({ text: 'RI高×XI高：人を動かしながら実行できる強みがあります。リーダーポジションが適しています。', urgent: false });
-
-  // 内向型・シャイへの対応
-  const introvertScore = Math.round((s.EI + s.MI + s.SI + s.HI) / 4);
-  const outerScore = Math.round((s.LI + s.CuI) / 2);
-  if (introvertScore >= H && outerScore <= L + 10) {
-    careerItems.push({ text: '内向型・深化型：初対面は苦手でも、深い関係の中で本来の力を発揮します。少人数・長期関係を活かせる環境設計が重要です。', urgent: false });
-  }
-  if (s.LI <= L && s.EI >= H) {
-    careerItems.push({ text: '人見知り×共感型：外向きの発信は苦手でも、1対1や小グループでの共感力は高いです。対話型・支援型の役割が強みを活かせます。', urgent: false });
-  }
-
-  if (careerItems.length > 0) sections.push({
-    icon: '💼', title: 'キャリア面談での活用',
-    color: '#3D6FA8', items: careerItems
-  });
-
-  // ── FP相談 ──
-  const fpItems = [];
-  if (s.FI <= L) fpItems.push({ text: 'FI低：リスク判断が弱い傾向があります。感情的な金融判断に注意が必要です。', urgent: true });
-  if (s.FI >= H && s.AI <= L) fpItems.push({ text: 'FI高×AI低：知識はあるがメンタル的な脆さがあります。ストレス下での判断ミスに注意。', urgent: true });
-  if (s.FI >= H && s.SI >= H) fpItems.push({ text: 'FI高×SI高：お金の価値観が明確です。長期的な資産設計との相性が良好です。', urgent: false });
-  if (s.FI >= H && s.SI <= L) fpItems.push({ text: 'FI高×SI低：金融知識はあるが、何のためのお金かが不明瞭です。人生設計の整理が先決です。', urgent: false });
-
-  if (fpItems.length > 0) sections.push({
-    icon: '💰', title: 'FP相談での活用',
-    color: '#4A7A55', items: fpItems
-  });
-
-  // ── コーチング ──
-  const coachItems = [];
-  if (ri >= H) coachItems.push({ text: 'RI高：顧客・クライアントとの関係構築が強みです。コーチング・コンサル職に適性あり。', urgent: false });
-  if (s.AeI >= H) coachItems.push({ text: 'AeI高：クリエイティブ領域でのコーチングに強みを発揮できます。', urgent: false });
-  if (s.XI >= H) coachItems.push({ text: 'XI高：計画を実行まで落とし込める人材です。実装支援型のコーチングが得意です。', urgent: false });
-  if (s.EI >= H && s.LI >= H) coachItems.push({ text: 'EI高×LI高：共感力と信頼構築力を兼備。クライアントの本音を引き出せます。', urgent: false });
-  if (s.SI >= H && s.MI >= H) coachItems.push({ text: 'SI高×MI高：価値観ベースのコーチングが得意。倫理的な判断軸を持ちながら相手の意味づけを支援できます。', urgent: false });
-
-  // 内向型コーチへの言及
-  const introvertScore2 = Math.round((s.EI + s.MI + s.SI + s.HI) / 4);
-  const outerScore2 = Math.round((s.LI + s.CuI) / 2);
-  if (introvertScore2 >= H && outerScore2 <= L + 10) {
-    coachItems.push({ text: '内向型コーチ適性：派手さはなくても、深い傾聴と洞察力でクライアントの本質に迫れます。1対1のコーチング・メンタリングに高い適性があります。', urgent: false });
-  }
-
-  if (coachItems.length > 0) sections.push({
-    icon: '🎯', title: 'コーチングでの活用',
-    color: '#6B5B8A', items: coachItems
-  });
-
-  return sections;
-}
-
-function renderPracticalInsights(subScores, ri) {
-  const tags = computeTraitTags(subScores, ri);
-  const sections = computePracticalInsights(subScores, ri);
-
-  const container = document.getElementById('practical-insights');
-
-  container.innerHTML = `
-    <!-- 特性タグ -->
-    <div style="margin-bottom:40px;">
-      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;
-        color:var(--ink-light);margin-bottom:16px;">あなたの特性タグ</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;">
-        ${tags.length > 0 ? tags.map(t => `
-          <div style="display:inline-flex;align-items:center;gap:6px;
-            padding:8px 16px;border-radius:100px;
-            background:${t.color}15;border:1.5px solid ${t.color}40;
-            font-size:13px;font-weight:600;color:${t.color};">
-            ${t.icon} ${t.label}
-          </div>
-        `).join('') : `
-          <div style="font-size:13px;color:var(--ink-light);">
-            全体的にバランスが取れています。突出した特性タグはありません。
-          </div>
-        `}
-      </div>
-    </div>
-
-    <!-- 実務活用インサイト -->
-    <div style="margin-bottom:40px;">
-      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;
-        color:var(--ink-light);margin-bottom:16px;">実務活用インサイト</div>
-      ${sections.length > 0 ? sections.map(sec => `
-        <div style="background:var(--warm-white);border:1px solid var(--sand);
-          border-radius:var(--radius);padding:28px;margin-bottom:16px;
-          border-left:4px solid ${sec.color};">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-            <span style="font-size:22px;">${sec.icon}</span>
-            <div style="font-size:15px;font-weight:700;color:var(--ink);">${sec.title}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            ${sec.items.map(item => `
-              <div style="display:flex;gap:10px;align-items:flex-start;
-                padding:12px 16px;border-radius:8px;
-                background:${item.urgent ? 'rgba(196,113,74,0.06)' : 'rgba(0,0,0,0.02)'};
-                border-left:3px solid ${item.urgent ? 'var(--terra)' : sec.color};">
-                <span style="font-size:12px;margin-top:1px;flex-shrink:0;">
-                  ${item.urgent ? '⚡' : '✓'}
-                </span>
-                <div style="font-size:13px;color:var(--ink-mid);line-height:1.7;">
-                  ${item.text}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `).join('') : `
-        <div style="background:var(--warm-white);border:1px solid var(--sand);
-          border-radius:var(--radius);padding:28px;text-align:center;
-          font-size:13px;color:var(--ink-light);">
-          現時点では特定の実務インサイトは生成されませんでした。
-          より多くのスコアが閾値を超えると表示されます。
-        </div>
-      `}
-    </div>
-  `;
 }
 
 // ══════════════════════════════════════════
@@ -1958,9 +1767,6 @@ function showResult() {
   }, 200);
 
   setTimeout(() => drawRadar(subScores, minKey), 400);
-
-  // 実務活用インサイト・特性タグ
-  renderPracticalInsights(subScores, ri);
 }
 
 // ══════════════════════════════════════════
