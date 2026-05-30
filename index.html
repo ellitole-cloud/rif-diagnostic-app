@@ -826,6 +826,48 @@
     .likert { gap: 4px; }
     .likert-btn { width: 40px; height: 40px; font-size: 13px; }
   }
+
+  /* ══════════════════════════════════════════
+     PRINT / PDF
+     ══════════════════════════════════════════ */
+  @media print {
+    /* 結果画面のみ表示 */
+    .screen          { display: none !important; }
+    #screen-result   { display: block !important; max-width: 100%; padding: 16px 24px; }
+    .result-actions  { display: none !important; }
+
+    /* 背景色・装飾を印刷時に維持 */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* ── Page 1: タイトルカード（ヘッダー + RI スコア + レーダー）── */
+    .result-header { break-inside: avoid; margin-bottom: 20px; }
+    .ri-hero       { break-inside: avoid; margin-bottom: 20px; }
+    .radar-section { break-inside: avoid; margin-bottom: 20px; }
+
+    /* ── Page 2: RI内訳（最弱リンク + メタ3指標）── */
+    #meta-section {
+      break-before: always;
+      break-inside: avoid;
+    }
+
+    /* ── Page 3: ドメインスコア A / B / C / D ── */
+    .scores-grid { break-before: always; }
+    .score-card  { break-inside: avoid; }
+
+    /* ── Page 4: 強み・成長の余地 ── */
+    .insight-grid { break-before: always; }
+    .insight-card { break-inside: avoid; }
+
+    /* ── Page 5: 最終メッセージ ── */
+    .result-message {
+      break-before: always;
+      break-inside: avoid;
+      margin-bottom: 0;
+    }
+
+    /* 孤立行・末尾余白を整える */
+    .rm-body { orphans: 3; widows: 3; }
+  }
 </style>
 </head>
 <body>
